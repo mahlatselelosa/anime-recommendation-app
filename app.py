@@ -11,53 +11,52 @@ def load_data(file):
     return pd.read_csv(file)
 
 # Content-Based Filtering
-def content_based_recommendations(user_input, data):
-    data['genre'] = data['genre'].fillna('')
-    data['combined_features'] = data['genre'] + ' ' + data['name']
-    cv = CountVectorizer()
-    count_matrix = cv.fit_transform(data['combined_features'])
+def content_based_recommender(user_input, data):
+    data['combined_features'] = data.apply(lambda row: f"{row['genre']} {row['name']}", axis=1)
+    vectorizer = CountVectorizer()
+    count_matrix = vectorizer.fit_transform(data['combined_features'])
     cosine_sim = cosine_similarity(count_matrix)
 
     def get_title_from_index(index):
-        return data[data.index == index]['name'].values[0]
+        return data.loc[index, 'name']
 
     def get_index_from_title(title):
-        return data[data['name'] == title].index.values[0]
+        try:
+            return data[data['name'] == title].index[0]
+        except IndexError:
+            return None
 
     recommendations = []
-    for movie in user_input:
-        try:
-            movie_index = get_index_from_title(movie)
-            similar_movies = list(enumerate(cosine_sim[movie_index]))
-            sorted_similar_movies = sorted(similar_movies, key=lambda x: x[1], reverse=True)
-            for element in sorted_similar_movies[1:11]:
-                recommendations.append(get_title_from_index(element[0]))
-        except IndexError:
-            recommendations.append("Movie not found in dataset")
-    return recommendations
+    for title in user_input:
+        index = get_index_from_title(title)
+        if index is not None:
+            similar_items = list(enumerate(cosine_sim[index]))
+            sorted_similar_items = sorted(similar_items, key=lambda x: x[1], reverse=True)[1:11]
+            recommendations.extend([get_title_from_index(i[0]) for i in sorted_similar_items])
+        else:
+            recommendations.append(f"{title} not found in dataset")
+
+    return list(set(recommendations))
 
 # Collaborative-Based Filtering
-def collaborative_based_recommendations(user_input, data):
+def collaborative_based_recommender(user_input, data):
     data['rating'] = data['rating'].fillna(0)
     data = data.astype({'anime_id': 'int64'})
     data = data.drop_duplicates(['anime_id', 'rating'])
-    data_pivot = data.pivot_table(index='anime_id', columns='name', values='rating').fillna(0)
-    user_input = [i for i in user_input]
-    a = np.zeros(len(data_pivot.columns))
-    for i in user_input:
-        a[i - 1] = 10
-    cos_sim = cosine_similarity([a], data_pivot)
-    df_cos_sim = pd.DataFrame(cos_sim[0], index=data_pivot.index)
-    df_cos_sim.columns = ['Cosine Similarity']
-    df_cos_sim = df_cos_sim.sort_values(by='Cosine Similarity', ascending=False)
-    if df_cos_sim.iloc[1, 0] < 0.4:
-        return "No suggestion possible!"
-    idx = df_cos_sim.iloc[1, :].name
-    reco = []
-    for i in data_pivot.columns:
-        if data_pivot.loc[idx, i] == 10:
-            reco.append(data_pivot.columns[i - 1])
-    return reco
+    user_item_matrix = data.pivot_table(index='anime_id', columns='name', values='rating').fillna(0)
+
+    user_input_indices = [data[data['name'] == title].index[0] for title in user_input if title in data['name'].values]
+    user_vector = np.zeros(len(user_item_matrix.columns))
+    for idx in user_input_indices:
+        user_vector[idx] = 10
+
+    similarity_scores = cosine_similarity([user_vector], user_item_matrix.T)[0]
+    similar_items = list(enumerate(similarity_scores))
+    sorted_similar_items = sorted(similar_items, key=lambda x: x[1], reverse=True)[1:11]
+
+    recommendations = [user_item_matrix.columns[i] for i, score in sorted_similar_items if score > 0]
+
+    return recommendations if recommendations else ["No suggestion possible!"]
 
 # Main Streamlit App
 def main():
@@ -65,7 +64,6 @@ def main():
 
     # Display an image
     image_path = 'anime.jpg'
-
     image = Image.open(image_path)
     st.image(image)
 
@@ -121,9 +119,9 @@ def main():
         if st.button('Recommend'):
             with st.spinner('Generating recommendations...'):
                 if algorithm == 'Content Based Filtering':
-                    recommendations = content_based_recommendations(user_input, anime_data)
+                    recommendations = content_based_recommender(user_input, anime_data)
                 else:
-                    recommendations = collaborative_based_recommendations(user_input, anime_data)
+                    recommendations = collaborative_based_recommender(user_input, anime_data)
 
             st.write('Here are your recommendations:')
             for i, rec in enumerate(recommendations):
