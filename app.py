@@ -64,7 +64,7 @@ def main():
     st.markdown("<h1 style='color: #FF6347;'>Anime Recommendation App</h1>", unsafe_allow_html=True)
 
     # Display an image
-    image_path = 'C:\\Users\\mahla\\OneDrive\\Desktop\\anime-recommendation-app\\anime.jpg'
+    image_path = 'anime.jpg'
 
     image = Image.open(image_path)
     st.image(image)
