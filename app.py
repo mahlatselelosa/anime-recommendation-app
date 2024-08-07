@@ -4,46 +4,7 @@ import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from PIL import Image
-import base64
 import pickle
-
-# Function to add background image
-def add_bg_from_local(image_path):
-    with open(image_path, "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read()).decode()
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{
-            background-image: url(data:image/jpeg;base64,{encoded_string});
-            background-size: cover;
-        }}
-        .sidebar .sidebar-content {{
-            background: linear-gradient(#ffeb3b,#f57c00);
-            color: white;
-        }}
-        h1 {{
-            color: #ffff00;
-            font-family: 'Comic Sans MS', cursive, sans-serif;
-        }}
-        h2 {{
-            color: #ffff00;
-            font-family: 'Comic Sans MS', cursive, sans-serif;
-        }}
-        h3 {{
-            color: #ffff00;
-            font-family: 'Comic Sans MS', cursive, sans-serif;
-        }}
-        .css-1avcm0n {{
-            color: black;
-        }}
-        .black-text {{
-            color: black;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
 
 # Load data
 @st.cache_data
@@ -76,28 +37,68 @@ def content_based_recommendations(user_input, data):
             recommendations.append("Movie not found in dataset")
     return recommendations
 
-# Collaborative-Based Filtering with Pickled Model (Placeholder)
-def collaborative_based_recommendations(user_input, model_path, data):
+# Collaborative-Based Filtering
+def collaborative_based_recommendations(user_input, data, model_path):
+    # Load pickled model
     with open(model_path, 'rb') as file:
         model = pickle.load(file)
 
-    user_data = np.zeros((1, data.shape[1]))
-    for title in user_input:
-        try:
-            idx = data.columns.get_loc(title)
-            user_data[0, idx] = 1
-        except KeyError:
-            pass
+    # Prepare data
+    data['rating'] = data['rating'].fillna(0)
+    data = data.astype({'anime_id': 'int64'})
+    data = data.drop_duplicates(['anime_id', 'rating'])
+    data_pivot = data.pivot_table(index='anime_id', columns='name', values='rating').fillna(0)
 
-    recommendations = model.predict(user_data)
-    recommended_anime = [data.columns[i] for i in recommendations[0].argsort()[-10:][::-1]]
-    
+    # Prepare user input
+    user_input_ids = [data_pivot.columns.get_loc(title) for title in user_input if title in data_pivot.columns]
+    user_vector = np.zeros(len(data_pivot.columns))
+    user_vector[user_input_ids] = 1
+
+    # Predict using the collaborative model
+    user_vector = user_vector.reshape(1, -1)
+    predictions = model.predict(user_vector)
+
+    # Get recommendations
+    recommendation_scores = list(enumerate(predictions[0]))
+    recommendation_scores = sorted(recommendation_scores, key=lambda x: x[1], reverse=True)
+    recommended_anime = [data_pivot.columns[i] for i, _ in recommendation_scores[:10]]
+
     return recommended_anime
 
 # Main Streamlit App
 def main():
-    # Add background image
-    add_bg_from_local('C:/Users/mahla/OneDrive/Desktop/Streamlit app/anime 5.jpg')
+    # Add background color and styling using st.markdown with HTML and CSS
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background-color: #e0f7fa;
+            background-image: url('https://example.com/anime-background.jpg');
+            background-size: cover;
+        }
+        .sidebar .sidebar-content {
+            background: linear-gradient(#ffeb3b,#f57c00);
+            color: white;
+        }
+        h1 {
+            color: #f44336;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+        }
+        h2 {
+            color: #ff9800;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+        }
+        h3 {
+            color: #2196f3;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+        }
+        .css-1avcm0n {
+            color: #4caf50;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
     st.sidebar.title("Navigation")
     options = st.sidebar.radio("Select a page:", ['Team Page', 'Project Overview', 'Anime Recommendation'])
@@ -106,35 +107,37 @@ def main():
         st.title("Meet the Team")
         st.markdown("""
         ### Team Name
-        - <span class="black-text">**Mahlatse Lelosa**</span>
-        - <span class="black-text">**Karabo Mathibela**</span>
-        - <span class="black-text">**Keneilwe Rangwaga**</span>
-        - <span class="black-text">**Josephine Ndukwani**</span>
-        - <span class="black-text">**Koena Macdonald**</span>
-        - <span class="black-text">**Mowanwa Tshikovhi**</span>
+        - **Mahlatse Lelosa**
+        - **Karabo Mathibela**
+        - **Keneilwe Rangwaga**
+        - **Koena Macdonald**
+        - **Muwanwa Tshikovhi** 
         
         ### Contact Information
-        - <span class="black-text">Email: mahlatselelosa98@gmail.com</span>
-        - <span class="black-text">Social Media: [LinkedIn](https://www.linkedin.com/in/mahlatse-lelosa-248476318/)</span>
-        """, unsafe_allow_html=True)
+        - Email: mahlatselelosa98@gmail.com
+                 tshikovhimuwanwa@gmail.com
+                 kmahladisa9@gmail.com
+                 karabomathibela44@gmail.com
+                 patricia001105@gmail.com            
+        """)
     elif options == 'Project Overview':
         st.title("Project Overview")
         st.markdown("""
         ## Objective
-        <span class="black-text">The goal of this project is to develop an anime recommendation system using both content-based and collaborative filtering techniques.</span>
+        The goal of this project is to develop an anime recommendation system using both content-based and collaborative filtering techniques.
 
         ## Methodology
-        - <span class="black-text">**Data Collection**: We collected data from Kaggle, including user ratings and anime metadata.</span>
-        - <span class="black-text">**Data Preprocessing**: The data was cleaned and processed to ensure accuracy and consistency.</span>
-        - <span class="black-text">**Recommendation Algorithms**: We implemented two types of recommendation algorithms:</span>
-          - <span class="black-text">**Content-Based Filtering**: Recommends anime similar to the ones a user likes based on genre and other features.</span>
-          - <span class="black-text">**Collaborative-Based Filtering**: Recommends anime based on the preferences of other users who have similar tastes.</span>
+        - **Data Collection**: We collected data from Kaggle, including user ratings and anime metadata.
+        - **Data Preprocessing**: The data was cleaned and processed to ensure accuracy and consistency.
+        - **Recommendation Algorithms**: We implemented two types of recommendation algorithms:
+          - **Content-Based Filtering**: Recommends anime similar to the ones a user likes based on genre and other features.
+          - **Collaborative-Based Filtering**: Recommends anime based on the preferences of other users who have similar tastes.
         
         ## Future Work
-        - <span class="black-text">Improve the collaborative filtering algorithm using a trained model.</span>
-        - <span class="black-text">Implement a feedback loop to refine recommendations based on user input.</span>
-        - <span class="black-text">Expand the dataset with more comprehensive anime information.</span>
-        """, unsafe_allow_html=True)
+        - Improve the collaborative filtering algorithm using a trained model.
+        - Implement a feedback loop to refine recommendations based on user input.
+        - Expand the dataset with more comprehensive anime information.
+        """)
 
     elif options == 'Anime Recommendation':
         st.title('Anime Recommendation App')
@@ -168,9 +171,9 @@ def main():
                 if algorithm == 'Content Based Filtering':
                     recommendations = content_based_recommendations(user_input, anime_data)
                 else:
-                    st.text("Make sure you have uploaded your pickled model before running collaborative filtering!")
+                    # Path to pickled model
                     model_path = 'C:/Users/mahla/Downloads/model/collaborative_model.pkl'
-                    recommendations = collaborative_based_recommendations(user_input, model_path, anime_data)
+                    recommendations = collaborative_based_recommendations(user_input, anime_data, model_path)
 
                 st.write('Here are your recommendations:')
                 for i, rec in enumerate(recommendations):
