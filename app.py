@@ -21,7 +21,7 @@ def load_train_data():
     return pd.read_csv(TRAIN_FILE_PATH)
 
 # Content-Based Filtering
-def find_similar_anime(title, data):
+def content_based_recommendations(user_input, data):
     data['genre'] = data['genre'].fillna('')
     data['combined_features'] = data['genre'] + ' ' + data['name']
     cv = CountVectorizer()
@@ -34,26 +34,17 @@ def find_similar_anime(title, data):
     def get_index_from_title(title):
         return data[data['name'] == title].index.values[0]
 
-    try:
-        anime_index = get_index_from_title(title)
-        similar_anime = list(enumerate(cosine_sim[anime_index]))
-        sorted_similar_anime = sorted(similar_anime, key=lambda x: x[1], reverse=True)
-        recommendations = [get_title_from_index(element[0]) for element in sorted_similar_anime[1:11]]
-        return recommendations
-    except IndexError:
-        return ["Movie not found in dataset"]
-
-def content_based_recommendations(user_inputs, dataset):
     recommendations = []
-    
-    for title in user_inputs:
-        if title not in dataset['name'].values:
-            recommendations.append(f"{title}: Movie not found in dataset")
-        else:
-            similar_anime = find_similar_anime(title, dataset)
-            recommendations.extend(similar_anime)
-    
-    return list(set(recommendations))  # Removing duplicates
+    for movie in user_input:
+        try:
+            movie_index = get_index_from_title(movie)
+            similar_movies = list(enumerate(cosine_sim[movie_index]))
+            sorted_similar_movies = sorted(similar_movies, key=lambda x: x[1], reverse=True)
+            for element in sorted_similar_movies[1:11]:
+                recommendations.append(get_title_from_index(element[0]))
+        except IndexError:
+            recommendations.append("Movie not found in dataset")
+    return recommendations
 
 # Collaborative-Based Filtering
 def collaborative_based_recommendations(user_input, data, model_path):
