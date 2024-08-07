@@ -6,19 +6,14 @@ from sklearn.metrics.pairwise import cosine_similarity
 from PIL import Image
 import pickle
 
-# Paths to the CSV files
-ANIME_FILE_PATH = 'C:/Users/mahla/OneDrive/Desktop/lelosa/anime.csv'
-TRAIN_FILE_PATH = 'C:/Users/mahla/OneDrive/Desktop/lelosa/train.csv'
-MODEL_PATH = 'C:/Users/mahla/Downloads/model/collaborative_model.pkl'
-
 # Load data
 @st.cache_data
-def load_anime_data():
-    return pd.read_csv(ANIME_FILE_PATH)
+def load_anime_data(file):
+    return pd.read_csv(file)
 
 @st.cache_data
-def load_train_data():
-    return pd.read_csv(TRAIN_FILE_PATH)
+def load_train_data(file):
+    return pd.read_csv(file)
 
 # Content-Based Filtering
 def content_based_recommendations(user_input, data):
@@ -152,40 +147,49 @@ def main():
         st.title('Anime Recommendation App')
 
         # Display an image
-        image_path = 'C:/Users/mahla/OneDrive/Desktop/anime.jpg'  # Updated to absolute path
+        image_path = 'anime.jpg'  # Updated to absolute path
         image = Image.open(image_path)
         st.image(image)
 
-        # Load data
-        anime_data = load_anime_data()
-        train_data = load_train_data()
+        # File upload for anime.csv
+        anime_file = st.file_uploader("Upload your anime dataset CSV file (anime.csv)", type="csv")
+        if anime_file is not None:
+            anime_data = load_anime_data(anime_file)
 
-        # Initialize recommendations
-        recommendations = []
+            # Initialize recommendations
+            recommendations = []
 
-        # User input section
-        st.header('Select an algorithm')
-        algorithm = st.radio(
-            '',
-            ('Content Based Filtering', 'Collaborative Based Filtering')
-        )
+            # User input section
+            st.header('Select an algorithm')
+            algorithm = st.radio(
+                '',
+                ('Content Based Filtering', 'Collaborative Based Filtering')
+            )
 
-        st.header('Enter Your Three Favorite Anime')
-        user_input = []
-        user_input.append(st.text_input('Enter first anime choice'))
-        user_input.append(st.text_input('Enter second anime choice'))
-        user_input.append(st.text_input('Enter third anime choice'))
+            st.header('Enter Your Three Favorite Anime')
+            user_input = []
+            user_input.append(st.text_input('Enter first anime choice'))
+            user_input.append(st.text_input('Enter second anime choice'))
+            user_input.append(st.text_input('Enter third anime choice'))
 
-        # Recommend button
-        if st.button('Recommend'):
-            if algorithm == 'Content Based Filtering':
-                recommendations = content_based_recommendations(user_input, anime_data)
-            else:
-                recommendations = collaborative_based_recommendations(user_input, train_data, MODEL_PATH)
+            # Recommend button
+            if st.button('Recommend'):
+                if algorithm == 'Content Based Filtering':
+                    recommendations = content_based_recommendations(user_input, anime_data)
+                else:
+                    # File upload for train.csv
+                    train_file = st.file_uploader("Upload your training data CSV file (train.csv)", type="csv")
+                    if train_file is not None:
+                        train_data = load_train_data(train_file)
+                        # Path to pickled model
+                        model_path = 'C:/Users/mahla/Downloads/model/collaborative_model.pkl'  # Use the correct absolute path
+                        recommendations = collaborative_based_recommendations(user_input, train_data, model_path)
+                    else:
+                        st.error("Please upload the training data CSV file.")
 
-            st.write('Here are your recommendations:')
-            for i, rec in enumerate(recommendations):
-                st.write(f"{i + 1}. {rec}")
+                st.write('Here are your recommendations:')
+                for i, rec in enumerate(recommendations):
+                    st.write(f"{i + 1}. {rec}")
 
 if __name__ == '__main__':
     main()
