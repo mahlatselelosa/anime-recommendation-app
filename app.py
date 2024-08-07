@@ -143,7 +143,7 @@ def main():
         st.title('Anime Recommendation App')
 
         # Display an image
-        image_path = 'C:/Users/mahla/OneDrive/Desktop/anime.jpg'
+        image_path = 'anime.jpg'  # Updated to relative path
         image = Image.open(image_path)
         st.image(image)
 
@@ -172,7 +172,7 @@ def main():
                     recommendations = content_based_recommendations(user_input, anime_data)
                 else:
                     # Path to pickled model
-                    model_path = 'C:/Users/mahla/Downloads/model/collaborative_model.pkl'
+                    model_path = 'assets/model/collaborative_model.pkl'  # Updated to relative path
                     recommendations = collaborative_based_recommendations(user_input, anime_data, model_path)
 
                 st.write('Here are your recommendations:')
