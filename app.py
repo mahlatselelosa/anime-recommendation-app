@@ -6,13 +6,22 @@ from sklearn.metrics.pairwise import cosine_similarity
 from PIL import Image
 import pickle
 
+# Paths to the CSV files
+ANIME_FILE_PATH = 'C:/Users/mahla/OneDrive/Desktop/lelosa/anime.csv'
+TRAIN_FILE_PATH = 'C:/Users/mahla/OneDrive/Desktop/lelosa/train.csv'
+MODEL_PATH = 'C:/Users/mahla/Downloads/model/collaborative_model.pkl'
+
 # Load data
 @st.cache_data
-def load_data(file):
-    return pd.read_csv(file)
+def load_anime_data():
+    return pd.read_csv(ANIME_FILE_PATH)
+
+@st.cache_data
+def load_train_data():
+    return pd.read_csv(TRAIN_FILE_PATH)
 
 # Content-Based Filtering
-def content_based_recommendations(user_input, data):
+def find_similar_anime(title, data):
     data['genre'] = data['genre'].fillna('')
     data['combined_features'] = data['genre'] + ' ' + data['name']
     cv = CountVectorizer()
@@ -25,17 +34,26 @@ def content_based_recommendations(user_input, data):
     def get_index_from_title(title):
         return data[data['name'] == title].index.values[0]
 
+    try:
+        anime_index = get_index_from_title(title)
+        similar_anime = list(enumerate(cosine_sim[anime_index]))
+        sorted_similar_anime = sorted(similar_anime, key=lambda x: x[1], reverse=True)
+        recommendations = [get_title_from_index(element[0]) for element in sorted_similar_anime[1:11]]
+        return recommendations
+    except IndexError:
+        return ["Movie not found in dataset"]
+
+def content_based_recommendations(user_inputs, dataset):
     recommendations = []
-    for movie in user_input:
-        try:
-            movie_index = get_index_from_title(movie)
-            similar_movies = list(enumerate(cosine_sim[movie_index]))
-            sorted_similar_movies = sorted(similar_movies, key=lambda x: x[1], reverse=True)
-            for element in sorted_similar_movies[1:11]:
-                recommendations.append(get_title_from_index(element[0]))
-        except IndexError:
-            recommendations.append("Movie not found in dataset")
-    return recommendations
+    
+    for title in user_inputs:
+        if title not in dataset['name'].values:
+            recommendations.append(f"{title}: Movie not found in dataset")
+        else:
+            similar_anime = find_similar_anime(title, dataset)
+            recommendations.extend(similar_anime)
+    
+    return list(set(recommendations))  # Removing duplicates
 
 # Collaborative-Based Filtering
 def collaborative_based_recommendations(user_input, data, model_path):
@@ -143,41 +161,40 @@ def main():
         st.title('Anime Recommendation App')
 
         # Display an image
-        image_path = 'anime.jpg'  # Updated to relative path
+        image_path = 'C:/Users/mahla/OneDrive/Desktop/anime.jpg'  # Updated to absolute path
         image = Image.open(image_path)
         st.image(image)
 
-        # File upload
-        uploaded_file = st.file_uploader("Upload your anime dataset CSV file", type="csv")
+        # Load data
+        anime_data = load_anime_data()
+        train_data = load_train_data()
 
-        if uploaded_file is not None:
-            anime_data = load_data(uploaded_file)
+        # Initialize recommendations
+        recommendations = []
 
-            # User input section
-            st.header('Select an algorithm')
-            algorithm = st.radio(
-                '',
-                ('Content Based Filtering', 'Collaborative Based Filtering')
-            )
+        # User input section
+        st.header('Select an algorithm')
+        algorithm = st.radio(
+            '',
+            ('Content Based Filtering', 'Collaborative Based Filtering')
+        )
 
-            st.header('Enter Your Three Favorite Movies')
-            user_input = []
-            user_input.append(st.text_input('Enter first movie choice'))
-            user_input.append(st.text_input('Enter second movie choice'))
-            user_input.append(st.text_input('Enter third movie choice'))
+        st.header('Enter Your Three Favorite Anime')
+        user_input = []
+        user_input.append(st.text_input('Enter first anime choice'))
+        user_input.append(st.text_input('Enter second anime choice'))
+        user_input.append(st.text_input('Enter third anime choice'))
 
-            # Recommend button
-            if st.button('Recommend'):
-                if algorithm == 'Content Based Filtering':
-                    recommendations = content_based_recommendations(user_input, anime_data)
-                else:
-                    # Path to pickled model
-                    model_path = 'assets/model/collaborative_model.pkl'  # Updated to relative path
-                    recommendations = collaborative_based_recommendations(user_input, anime_data, model_path)
+        # Recommend button
+        if st.button('Recommend'):
+            if algorithm == 'Content Based Filtering':
+                recommendations = content_based_recommendations(user_input, anime_data)
+            else:
+                recommendations = collaborative_based_recommendations(user_input, train_data, MODEL_PATH)
 
-                st.write('Here are your recommendations:')
-                for i, rec in enumerate(recommendations):
-                    st.write(f"{i + 1}. {rec}")
+            st.write('Here are your recommendations:')
+            for i, rec in enumerate(recommendations):
+                st.write(f"{i + 1}. {rec}")
 
 if __name__ == '__main__':
     main()
