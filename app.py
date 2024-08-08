@@ -3,17 +3,18 @@ import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from PIL import Image
+from surprise import Dataset, Reader
 import pickle
+from PIL import Image
 
 # Load data
 @st.cache_data
-def load_anime_data(file):
-    return pd.read_csv(file)
+def load_anime_data():
+    return pd.read_csv('anime.csv')  # Adjust the path to your dataset
 
 @st.cache_data
-def load_train_data(file):
-    return pd.read_csv(file)
+def load_train_data():
+    return pd.read_csv('train.csv')  # Adjust the path to your dataset
 
 # Content-Based Filtering
 def content_based_recommendations(user_input, data):
@@ -30,42 +31,51 @@ def content_based_recommendations(user_input, data):
         return data[data['name'] == title].index.values[0]
 
     recommendations = []
-    for movie in user_input:
+    for anime in user_input:
         try:
-            movie_index = get_index_from_title(movie)
-            similar_movies = list(enumerate(cosine_sim[movie_index]))
-            sorted_similar_movies = sorted(similar_movies, key=lambda x: x[1], reverse=True)
-            for element in sorted_similar_movies[1:11]:
+            anime_index = get_index_from_title(anime)
+            similar_anime = list(enumerate(cosine_sim[anime_index]))
+            sorted_similar_anime = sorted(similar_anime, key=lambda x: x[1], reverse=True)
+            for element in sorted_similar_anime[1:11]:
                 recommendations.append(get_title_from_index(element[0]))
         except IndexError:
-            recommendations.append("Movie not found in dataset")
+            recommendations.append("Anime not found in dataset")
     return recommendations
 
 # Collaborative-Based Filtering
-def collaborative_based_recommendations(user_input, data, model_path):
+def collaborative_based_recommendations(user_input, train_data, anime_data, model_path):
     # Load pickled model
     with open(model_path, 'rb') as file:
         model = pickle.load(file)
 
-    # Prepare data
-    data['rating'] = data['rating'].fillna(0)
-    data = data.astype({'anime_id': 'int64'})
-    data = data.drop_duplicates(['anime_id', 'rating'])
-    data_pivot = data.pivot_table(index='anime_id', columns='name', values='rating').fillna(0)
+    # Prepare train data
+    train_data = train_data[['anime_id', 'user_id', 'rating']]
+    train_data['rating'] = train_data['rating'].fillna(0)
+    train_data = train_data.drop_duplicates(['anime_id', 'user_id'])
+
+    # Convert to surprise Dataset
+    reader = Reader(rating_scale=(0, 10))
+    surprise_data = Dataset.load_from_df(train_data[['user_id', 'anime_id', 'rating']], reader)
+    trainset = surprise_data.build_full_trainset()
+
+    # Rebuild the model using the full dataset
+    model.fit(trainset)
 
     # Prepare user input
-    user_input_ids = [data_pivot.columns.get_loc(title) for title in user_input if title in data_pivot.columns]
-    user_vector = np.zeros(len(data_pivot.columns))
-    user_vector[user_input_ids] = 1
+    user_input_ids = [anime_data[anime_data['name'] == title]['anime_id'].values[0] for title in user_input if title in anime_data['name'].values]
 
-    # Predict using the collaborative model
-    user_vector = user_vector.reshape(1, -1)
-    predictions = model.predict(user_vector)
+    # Make predictions for all anime in the dataset
+    predictions = []
+    for anime_id in anime_data['anime_id'].unique():
+        pred = model.predict(uid='user', iid=anime_id)
+        predictions.append((anime_id, pred.est))
 
     # Get recommendations
-    recommendation_scores = list(enumerate(predictions[0]))
-    recommendation_scores = sorted(recommendation_scores, key=lambda x: x[1], reverse=True)
-    recommended_anime = [data_pivot.columns[i] for i, _ in recommendation_scores[:10]]
+    recommendation_scores = sorted(predictions, key=lambda x: x[1], reverse=True)
+    recommended_anime_ids = [i[0] for i in recommendation_scores[:10]]
+
+    # Merge with anime data to get names
+    recommended_anime = anime_data[anime_data['anime_id'].isin(recommended_anime_ids)]['name'].tolist()
 
     return recommended_anime
 
@@ -105,7 +115,7 @@ def main():
     )
 
     st.sidebar.title("Navigation")
-    options = st.sidebar.radio("Select a page:", ['Team Page', 'Project Overview', 'Anime Recommendation'])
+    options = st.sidebar.radio("Select a page:", ['Team Page', 'Project Overview', 'Anime Recommendation', 'Feedback'])
 
     if options == 'Team Page':
         st.title("Meet the Team")
@@ -151,45 +161,55 @@ def main():
         image = Image.open(image_path)
         st.image(image)
 
-        # File upload for anime.csv
-        anime_file = st.file_uploader("Upload your anime dataset CSV file (anime.csv)", type="csv")
-        if anime_file is not None:
-            anime_data = load_anime_data(anime_file)
+        # Load data
+        anime_data = load_anime_data()
+        train_data = load_train_data()
 
-            # Initialize recommendations
-            recommendations = []
+        # Initialize recommendations
+        recommendations = []
 
-            # User input section
-            st.header('Select an algorithm')
-            algorithm = st.radio(
-                '',
-                ('Content Based Filtering', 'Collaborative Based Filtering')
-            )
+        # User input section
+        st.header('Select an algorithm')
+        algorithm = st.radio(
+            '',
+            ('Content Based Filtering', 'Collaborative Based Filtering')
+        )
 
-            st.header('Enter Your Three Favorite Anime')
-            user_input = []
-            user_input.append(st.text_input('Enter first anime choice'))
-            user_input.append(st.text_input('Enter second anime choice'))
-            user_input.append(st.text_input('Enter third anime choice'))
+        st.header('Enter Your Three Favorite Anime')
+        user_input = []
+        user_input.append(st.text_input('Enter first anime choice'))
+        user_input.append(st.text_input('Enter second anime choice'))
+        user_input.append(st.text_input('Enter third anime choice'))
 
-            # Recommend button
-            if st.button('Recommend'):
-                if algorithm == 'Content Based Filtering':
-                    recommendations = content_based_recommendations(user_input, anime_data)
-                else:
-                    # File upload for train.csv
-                    train_file = st.file_uploader("Upload your training data CSV file (train.csv)", type="csv")
-                    if train_file is not None:
-                        train_data = load_train_data(train_file)
-                        # Path to pickled model
-                        model_path = 'C:/Users/mahla/Downloads/model/collaborative_model.pkl'  # Use the correct absolute path
-                        recommendations = collaborative_based_recommendations(user_input, train_data, model_path)
-                    else:
-                        st.error("Please upload the training data CSV file.")
+        # Recommend button
+        if st.button('Recommend'):
+            if algorithm == 'Content Based Filtering':
+                recommendations = content_based_recommendations(user_input, anime_data)
+            else:
+                # Path to pickled model
+                model_path = 'C:/Users/mahla/Downloads/model/collaborative_model.pkl'  # Use the correct absolute path
+                recommendations = collaborative_based_recommendations(user_input, train_data, anime_data, model_path)
 
-                st.write('Here are your recommendations:')
-                for i, rec in enumerate(recommendations):
-                    st.write(f"{i + 1}. {rec}")
+            st.write('Here are your recommendations:')
+            for i, rec in enumerate(recommendations):
+                st.write(f"{i + 1}. {rec}")
+
+    elif options == 'Feedback':
+        st.title("Feedback Page")
+        st.markdown("""
+        ## We Value Your Feedback!
+        Please let us know what you think about our Anime Recommendation App. Your feedback is important to us and helps us improve our service.
+
+        ### Feedback Form
+        """)
+        
+        name = st.text_input("Name")
+        email = st.text_input("Email")
+        feedback = st.text_area("Your Feedback")
+        
+        if st.button("Submit"):
+            st.write("Thank you for your feedback!")
+            # Here you can add code to save the feedback to a database or send it via email
 
 if __name__ == '__main__':
     main()
