@@ -1,11 +1,11 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from surprise import Dataset, Reader
+import streamlit as st # type: ignore
+import pandas as pd # type: ignore
+import numpy as np # type: ignore
+from sklearn.feature_extraction.text import CountVectorizer # type: ignore
+from sklearn.metrics.pairwise import cosine_similarity # type: ignore
+from surprise import Dataset, Reader # type: ignore
 import pickle
-from PIL import Image
+from PIL import Image # type: ignore
 
 # Load data
 @st.cache_data
